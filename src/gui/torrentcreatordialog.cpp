@@ -247,14 +247,14 @@ void TorrentCreatorDialog::handleCreationFailure(const QString &msg)
     setInteractionEnabled(true);
 }
 
-void TorrentCreatorDialog::handleCreationSuccess(const Path &path, const Path &branchPath)
+void TorrentCreatorDialog::handleCreationSuccess(const BitTorrent::TorrentCreatorResult &result)
 {
     // Remove busy cursor
     setCursor(QCursor(Qt::ArrowCursor));
     if (m_ui->checkStartSeeding->isChecked())
     {
         // Create save path temp data
-        const auto loadResult = BitTorrent::TorrentDescriptor::loadFromFile(path);
+        const auto loadResult = BitTorrent::TorrentDescriptor::loadFromFile(result.path);
         if (!loadResult)
         {
             QMessageBox::critical(this, tr("Torrent creation failed"), tr("Reason: Created torrent is invalid. It won't be added to download list."));
@@ -262,7 +262,7 @@ void TorrentCreatorDialog::handleCreationSuccess(const Path &path, const Path &b
         }
 
         BitTorrent::AddTorrentParams params;
-        params.savePath = branchPath;
+        params.savePath = result.branchPath;
         params.skipChecking = true;
         if (m_ui->checkIgnoreShareLimits->isChecked())
         {
@@ -275,7 +275,7 @@ void TorrentCreatorDialog::handleCreationSuccess(const Path &path, const Path &b
         BitTorrent::Session::instance()->addTorrent(loadResult.value(), params);
     }
     QMessageBox::information(this, tr("Torrent creator")
-        , u"%1\n%2"_s.arg(tr("Torrent created:"), path.toString()));
+        , u"%1\n%2"_s.arg(tr("Torrent created:"), result.path.toString()));
     setInteractionEnabled(true);
 }
 

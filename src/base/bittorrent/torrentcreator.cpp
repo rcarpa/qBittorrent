@@ -74,9 +74,10 @@ namespace
 
 using namespace BitTorrent;
 
-TorrentCreator::TorrentCreator(const TorrentCreatorParams &params, QObject *parent)
+TorrentCreator::TorrentCreator(const TorrentCreatorParams &params, bool emitContent, QObject *parent)
     : QObject(parent)
     , m_params(params)
+    , m_emitContent(emitContent)
 {
 
 }
@@ -205,14 +206,22 @@ void TorrentCreator::run()
             entry["info"]["source"] = m_params.source.toStdString();
 
         checkInterruptionRequested();
+        if (!m_params.savePath.isEmpty())
+        {
+            // create the torrent file
+            const nonstd::expected<void, QString> result = Utils::IO::saveToFile(m_params.savePath, entry);
+            if (!result)
+                throw RuntimeError(result.error());
+        }
 
-        // create the torrent
-        const nonstd::expected<void, QString> result = Utils::IO::saveToFile(m_params.savePath, entry);
-        if (!result)
-            throw RuntimeError(result.error());
-
+        BitTorrent::TorrentCreatorResult result;
+        result.path = m_params.savePath;
+        result.branchPath = parentPath;
+        result.pieceSize = newTorrent.piece_length();
+        if (m_emitContent)
+            lt::bencode(std::back_inserter(result.content), entry);
         emit updateProgress(100);
-        emit creationSuccess(m_params.savePath, parentPath);
+        emit creationSuccess(result);
     }
     catch (const RuntimeError &err)
     {
