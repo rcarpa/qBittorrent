@@ -31,7 +31,7 @@
 
 #include <QDialog>
 
-#include "base/bittorrent/torrentcreatorthread.h"
+#include "base/bittorrent/torrentcreator.h"
 #include "base/path.h"
 #include "base/settingvalue.h"
 
@@ -75,7 +75,6 @@ private:
 #endif
 
     Ui::TorrentCreatorDialog *m_ui = nullptr;
-    BitTorrent::TorrentCreatorThread *m_creatorThread = nullptr;
 
     // settings
     SettingValue<QSize> m_storeDialogSize;

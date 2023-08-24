@@ -34,6 +34,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QUrl>
+#include <QThreadPool>
 
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrentdescriptor.h"
@@ -59,7 +60,6 @@ namespace
 TorrentCreatorDialog::TorrentCreatorDialog(QWidget *parent, const Path &defaultPath)
     : QDialog(parent)
     , m_ui(new Ui::TorrentCreatorDialog)
-    , m_creatorThread(new BitTorrent::TorrentCreatorThread(this))
     , m_storeDialogSize(SETTINGS_KEY(u"Size"_s))
     , m_storePieceSize(SETTINGS_KEY(u"PieceSize"_s))
     , m_storePrivateTorrent(SETTINGS_KEY(u"PrivateTorrent"_s))
@@ -89,10 +89,6 @@ TorrentCreatorDialog::TorrentCreatorDialog(QWidget *parent, const Path &defaultP
     connect(m_ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(m_ui->buttonCalcTotalPieces, &QPushButton::clicked, this, &TorrentCreatorDialog::updatePiecesCount);
     connect(m_ui->checkStartSeeding, &QCheckBox::clicked, m_ui->checkIgnoreShareLimits, &QWidget::setEnabled);
-
-    connect(m_creatorThread, &BitTorrent::TorrentCreatorThread::creationSuccess, this, &TorrentCreatorDialog::handleCreationSuccess);
-    connect(m_creatorThread, &BitTorrent::TorrentCreatorThread::creationFailure, this, &TorrentCreatorDialog::handleCreationFailure);
-    connect(m_creatorThread, &BitTorrent::TorrentCreatorThread::updateProgress, this, &TorrentCreatorDialog::updateProgressBar);
 
     loadSettings();
     updateInputPath(defaultPath);
@@ -233,8 +229,14 @@ void TorrentCreatorDialog::onCreateButtonClicked()
         , m_ui->URLSeedsList->toPlainText().split(u'\n', Qt::SkipEmptyParts)
     };
 
-    // run the creator thread
-    m_creatorThread->create(params);
+    auto *torrentCreator = new BitTorrent::TorrentCreator(params);
+    connect(this, &QDialog::finished, torrentCreator, &BitTorrent::TorrentCreator::requestInterruption);
+    connect(torrentCreator, &BitTorrent::TorrentCreator::creationSuccess, this, &TorrentCreatorDialog::handleCreationSuccess);
+    connect(torrentCreator, &BitTorrent::TorrentCreator::creationFailure, this, &TorrentCreatorDialog::handleCreationFailure);
+    connect(torrentCreator, &BitTorrent::TorrentCreator::updateProgress, this, &TorrentCreatorDialog::updateProgressBar);
+
+    // run the torrentCreator in a thread
+    QThreadPool::globalInstance()->start(torrentCreator);
 }
 
 void TorrentCreatorDialog::handleCreationFailure(const QString &msg)
@@ -286,11 +288,11 @@ void TorrentCreatorDialog::updatePiecesCount()
 {
     const Path path = m_ui->textInputPath->selectedPath();
 #ifdef QBT_USES_LIBTORRENT2
-    const int count = BitTorrent::TorrentCreatorThread::calculateTotalPieces(
+    const int count = BitTorrent::TorrentCreator::calculateTotalPieces(
         path, getPieceSize(), getTorrentFormat());
 #else
     const bool isAlignmentOptimized = m_ui->checkOptimizeAlignment->isChecked();
-    const int count = BitTorrent::TorrentCreatorThread::calculateTotalPieces(path
+    const int count = BitTorrent::TorrentCreator::calculateTotalPieces(path
         , getPieceSize(), isAlignmentOptimized, getPaddedFileSizeLimit());
 #endif
     m_ui->labelTotalPieces->setText(QString::number(count));

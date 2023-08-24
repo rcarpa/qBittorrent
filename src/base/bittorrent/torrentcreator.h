@@ -28,8 +28,9 @@
 
 #pragma once
 
+#include <QObject>
+#include <QRunnable>
 #include <QStringList>
-#include <QThread>
 
 #include "base/path.h"
 
@@ -62,16 +63,20 @@ namespace BitTorrent
         QStringList urlSeeds;
     };
 
-    class TorrentCreatorThread final : public QThread
+    class TorrentCreator final : public QObject, public QRunnable
     {
         Q_OBJECT
-        Q_DISABLE_COPY_MOVE(TorrentCreatorThread)
+        Q_DISABLE_COPY_MOVE(TorrentCreator)
 
     public:
-        explicit TorrentCreatorThread(QObject *parent = nullptr);
-        ~TorrentCreatorThread() override;
+        explicit TorrentCreator(const TorrentCreatorParams &params, QObject *parent = nullptr);
 
-        void create(const TorrentCreatorParams &params);
+        void run() override;
+
+        bool isInterruptionRequested() const;
+
+    public slots:
+        void requestInterruption();
 
 #ifdef QBT_USES_LIBTORRENT2
         static int calculateTotalPieces(const Path &inputPath, int pieceSize, TorrentFormat torrentFormat);
@@ -86,10 +91,10 @@ namespace BitTorrent
         void updateProgress(int progress);
 
     private:
-        void run() override;
         void sendProgressSignal(int currentPieceIdx, int totalPieces);
         void checkInterruptionRequested() const;
 
         TorrentCreatorParams m_params;
+        bool m_interruptionRequested = false;
     };
 }
