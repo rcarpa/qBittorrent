@@ -65,6 +65,14 @@ namespace BitTorrent
         QStringList urlSeeds;
     };
 
+    struct TorrentCreatorResult
+    {
+        Path path;
+        Path branchPath;
+        int pieceSize;
+        QByteArray content;
+    };
+
     class TorrentCreator final : public QObject, public QRunnable
     {
         Q_OBJECT
@@ -89,7 +97,7 @@ namespace BitTorrent
 
     signals:
         void creationFailure(const QString &msg);
-        void creationSuccess(const Path &path, const Path &branchPath);
+        void creationSuccess(const TorrentCreatorResult &result);
         void updateProgress(int progress);
 
     private:

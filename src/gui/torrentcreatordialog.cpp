@@ -261,17 +261,17 @@ void TorrentCreatorDialog::handleCreationFailure(const QString &msg)
     setInteractionEnabled(true);
 }
 
-void TorrentCreatorDialog::handleCreationSuccess(const Path &path, const Path &branchPath)
+void TorrentCreatorDialog::handleCreationSuccess(const BitTorrent::TorrentCreatorResult &result)
 {
     setCursor(QCursor(Qt::ArrowCursor));
     setInteractionEnabled(true);
 
     QMessageBox::information(this, tr("Torrent creator")
-        , u"%1\n%2"_s.arg(tr("Torrent created:"), path.toString()));
+        , u"%1\n%2"_s.arg(tr("Torrent created:"), result.path.toString()));
 
     if (m_ui->checkStartSeeding->isChecked())
     {
-        const auto loadResult = BitTorrent::TorrentDescriptor::loadFromFile(path);
+        const auto loadResult = BitTorrent::TorrentDescriptor::loadFromFile(result.path);
         if (!loadResult)
         {
             const QString message = tr("Add torrent to transfer list failed.") + u'\n' + tr("Reason: \"%1\"").arg(loadResult.error());
@@ -280,7 +280,7 @@ void TorrentCreatorDialog::handleCreationSuccess(const Path &path, const Path &b
         }
 
         BitTorrent::AddTorrentParams params;
-        params.savePath = branchPath;
+        params.savePath = result.branchPath;
         params.skipChecking = true;
         if (m_ui->checkIgnoreShareLimits->isChecked())
         {

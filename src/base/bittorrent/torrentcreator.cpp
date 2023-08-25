@@ -205,13 +205,24 @@ void TorrentCreator::run()
 
         checkInterruptionRequested();
 
-        // create the torrent
-        const nonstd::expected<void, QString> result = Utils::IO::saveToFile(m_params.savePath, entry);
-        if (!result)
-            throw RuntimeError(result.error());
+        BitTorrent::TorrentCreatorResult creatorResult;
+        creatorResult.path = m_params.savePath;
+        creatorResult.branchPath = parentPath;
+        creatorResult.pieceSize = newTorrent.piece_length();
+        if (!m_params.savePath.isEmpty())
+        {
+            // create the torrent file
+            const nonstd::expected<void, QString> result = Utils::IO::saveToFile(m_params.savePath, entry);
+            if (!result)
+                throw RuntimeError(result.error());
+        }
+        else
+        {
+            lt::bencode(std::back_inserter(creatorResult.content), entry);
+        }
 
         emit updateProgress(100);
-        emit creationSuccess(m_params.savePath, parentPath);
+        emit creationSuccess(creatorResult);
     }
     catch (const RuntimeError &err)
     {
