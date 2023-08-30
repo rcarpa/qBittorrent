@@ -53,6 +53,7 @@ namespace BitTorrent
         QString errorMsg() const;
         const TorrentCreatorParams &params() const;
         int progress() const;
+        void startSeeding() const;
 
     public slots:
         void handleProgress(int progress);
@@ -78,7 +79,7 @@ namespace BitTorrent
         ~TorrentCreationManager() override;
         static TorrentCreationManager *instance();
         static void freeInstance();
-        QString createTask(const TorrentCreatorParams &params);
+        QString createTask(const TorrentCreatorParams &params, bool startSeeding = true, bool autoDelete = true);
         TorrentCreationTask* getTask(const QString &id) const;
         bool deleteTask(const QString &id);
         QStringList taskIds() const;

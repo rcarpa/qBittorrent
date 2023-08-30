@@ -271,26 +271,13 @@ void TorrentCreatorDialog::handleCreationSuccess(const BitTorrent::TorrentCreato
 
     if (m_ui->checkStartSeeding->isChecked())
     {
-        const auto loadResult = BitTorrent::TorrentDescriptor::loadFromFile(result.path);
+        const auto loadResult = result.startSeeding(m_ui->checkIgnoreShareLimits->isChecked());
         if (!loadResult)
         {
             const QString message = tr("Add torrent to transfer list failed.") + u'\n' + tr("Reason: \"%1\"").arg(loadResult.error());
             QMessageBox::critical(this, tr("Add torrent failed"), message);
             return;
         }
-
-        BitTorrent::AddTorrentParams params;
-        params.savePath = result.branchPath;
-        params.skipChecking = true;
-        if (m_ui->checkIgnoreShareLimits->isChecked())
-        {
-            params.ratioLimit = BitTorrent::Torrent::NO_RATIO_LIMIT;
-            params.seedingTimeLimit = BitTorrent::Torrent::NO_SEEDING_TIME_LIMIT;
-            params.inactiveSeedingTimeLimit = BitTorrent::Torrent::NO_INACTIVE_SEEDING_TIME_LIMIT;
-        }
-        params.useAutoTMM = false;  // otherwise if it is on by default, it will overwrite `savePath` to the default save path
-
-        BitTorrent::Session::instance()->addTorrent(loadResult.value(), params);
     }
 }
 

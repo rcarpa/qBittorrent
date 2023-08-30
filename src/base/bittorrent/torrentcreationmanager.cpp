@@ -135,7 +135,7 @@ void TorrentCreationManager::freeInstance()
     delete m_instance;
 }
 
-QString TorrentCreationManager::createTask(const TorrentCreatorParams &params)
+QString TorrentCreationManager::createTask(const TorrentCreatorParams &params, bool startSeeding, bool autoDelete)
 {
     QString taskId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     while (m_tasks.contains(taskId))
@@ -145,9 +145,33 @@ QString TorrentCreationManager::createTask(const TorrentCreatorParams &params)
 
     auto *torrentCreator = new TorrentCreator(params, this);
     auto *creationTask = new TorrentCreationTask(params, this);
+
+    auto onSuccess = [this, startSeeding, autoDelete, taskId](const TorrentCreatorResult &result)
+    {
+        if (startSeeding)
+            result.startSeeding(false);
+        TorrentCreationTask * task = getTask(taskId);
+        if (task)
+        {
+            task->handleSuccess(result);
+        }
+        if (autoDelete)
+            deleteTask(taskId);
+    };
+
+    auto onFailure = [this, autoDelete, taskId](const QString &msg)
+    {
+        TorrentCreationTask * task = getTask(taskId);
+        if (task)
+        {
+            task->handleFailure(msg);
+        }
+        if (autoDelete)
+            deleteTask(taskId);
+    };
     connect(creationTask, &QObject::destroyed, torrentCreator, &BitTorrent::TorrentCreator::requestInterruption);
-    connect(torrentCreator, &BitTorrent::TorrentCreator::creationSuccess, creationTask, &TorrentCreationTask::handleSuccess);
-    connect(torrentCreator, &BitTorrent::TorrentCreator::creationFailure, creationTask, &TorrentCreationTask::handleFailure);
+    connect(torrentCreator, &BitTorrent::TorrentCreator::creationSuccess, this, onSuccess);
+    connect(torrentCreator, &BitTorrent::TorrentCreator::creationFailure, this, onFailure);
     connect(torrentCreator, &BitTorrent::TorrentCreator::updateProgress, creationTask, &TorrentCreationTask::handleProgress);
 
     m_tasks[taskId] = creationTask;

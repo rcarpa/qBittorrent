@@ -35,6 +35,7 @@
 #include <QStringList>
 
 #include "base/path.h"
+#include "torrentdescriptor.h"
 
 namespace BitTorrent
 {
@@ -71,6 +72,8 @@ namespace BitTorrent
         Path branchPath;
         int pieceSize;
         QByteArray content;
+
+        nonstd::expected<BitTorrent::TorrentDescriptor, QString> startSeeding(bool ignoreShareLimits) const;
     };
 
     class TorrentCreator final : public QObject, public QRunnable

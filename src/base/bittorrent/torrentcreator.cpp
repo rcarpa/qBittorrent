@@ -38,6 +38,7 @@
 #include <QFileInfo>
 #include <QHash>
 
+#include "addtorrentparams.h"
 #include "base/exceptions.h"
 #include "base/global.h"
 #include "base/utils/compare.h"
@@ -45,6 +46,7 @@
 #include "base/utils/io.h"
 #include "base/version.h"
 #include "lttypecast.h"
+#include "session.h"
 
 namespace
 {
@@ -73,6 +75,30 @@ namespace
 }
 
 using namespace BitTorrent;
+
+nonstd::expected<BitTorrent::TorrentDescriptor, QString>
+TorrentCreatorResult::startSeeding(bool ignoreShareLimits) const
+{
+    const auto loadResult = content.isEmpty()
+                          ? TorrentDescriptor::loadFromFile(path)
+                          : TorrentDescriptor::load(content);
+    if (!loadResult)
+        return loadResult;
+
+    BitTorrent::AddTorrentParams params;
+    params.savePath = branchPath;
+    params.skipChecking = true;
+    if (ignoreShareLimits)
+    {
+        params.ratioLimit = BitTorrent::Torrent::NO_RATIO_LIMIT;
+        params.seedingTimeLimit = BitTorrent::Torrent::NO_SEEDING_TIME_LIMIT;
+        params.inactiveSeedingTimeLimit = BitTorrent::Torrent::NO_INACTIVE_SEEDING_TIME_LIMIT;
+    }
+    params.useAutoTMM = false;  // otherwise if it is on by default, it will overwrite `savePath` to the default save path
+
+    Session::instance()->addTorrent(loadResult.value(), params);
+    return loadResult;
+}
 
 TorrentCreator::TorrentCreator(const TorrentCreatorParams &params, QObject *parent)
     : QObject(parent)

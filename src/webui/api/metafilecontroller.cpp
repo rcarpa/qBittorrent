@@ -84,7 +84,10 @@ void MetafileController::createAction()
     createTorrentParams.trackers = params()[KEY_TRACKERS].split(u'|');
     createTorrentParams.urlSeeds = params()[KEY_URL_SEEDS].split(u'|');
 
-    QString taskId = BitTorrent::TorrentCreationManager::instance()->createTask(createTorrentParams);
+    bool const autoDelete = parseBool(params()[u"autoDelete"_s]).value_or(true);
+    bool const startSeeding = parseBool(params()[u"startSeeding"_s]).value_or(true);
+
+    QString taskId = BitTorrent::TorrentCreationManager::instance()->createTask(createTorrentParams, startSeeding, autoDelete);
     setResult(QJsonObject {{KEY_ID, taskId}});
 }
 
