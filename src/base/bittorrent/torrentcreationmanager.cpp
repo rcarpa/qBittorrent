@@ -38,8 +38,9 @@ using namespace BitTorrent;
 
 QPointer<TorrentCreationManager> TorrentCreationManager::m_instance = nullptr;
 
-TorrentCreationTask::TorrentCreationTask(const BitTorrent::TorrentCreatorParams &params, QObject *parent)
+TorrentCreationTask::TorrentCreationTask(const QString &id, const BitTorrent::TorrentCreatorParams &params, QObject *parent)
     : QObject(parent)
+    , m_id {id}
     , m_params {params}
 {
 }
@@ -78,6 +79,11 @@ bool TorrentCreationTask::isDoneWithError() const
 bool TorrentCreationTask::isRunning() const
 {
     return m_started && !m_done;
+}
+
+QString TorrentCreationTask::id() const
+{
+    return m_id;
 }
 
 QByteArray TorrentCreationTask::content() const
@@ -135,18 +141,18 @@ void TorrentCreationManager::freeInstance()
     delete m_instance;
 }
 
-QString TorrentCreationManager::createTask(const TorrentCreatorParams &params, bool startSeeding, bool autoDelete)
+QString TorrentCreationManager::createTask(const TorrentCreatorParams &params, bool startSeeding)
 {
     QString taskId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    while (m_tasks.contains(taskId))
+    while (tasksById().contains(taskId))
     {
         taskId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
 
     auto *torrentCreator = new TorrentCreator(params, this);
-    auto *creationTask = new TorrentCreationTask(params, this);
+    auto *creationTask = new TorrentCreationTask(taskId, params, this);
 
-    auto onSuccess = [this, startSeeding, autoDelete, taskId](const TorrentCreatorResult &result)
+    auto onSuccess = [this, startSeeding, taskId](const TorrentCreatorResult &result)
     {
         if (startSeeding)
             result.startSeeding(false);
@@ -155,51 +161,78 @@ QString TorrentCreationManager::createTask(const TorrentCreatorParams &params, b
         {
             task->handleSuccess(result);
         }
-        if (autoDelete)
-            deleteTask(taskId);
     };
 
-    auto onFailure = [this, autoDelete, taskId](const QString &msg)
+    auto onFailure = [this, taskId](const QString &msg)
     {
         TorrentCreationTask * task = getTask(taskId);
         if (task)
         {
             task->handleFailure(msg);
         }
-        if (autoDelete)
-            deleteTask(taskId);
     };
     connect(creationTask, &QObject::destroyed, torrentCreator, &BitTorrent::TorrentCreator::requestInterruption);
     connect(torrentCreator, &BitTorrent::TorrentCreator::creationSuccess, this, onSuccess);
     connect(torrentCreator, &BitTorrent::TorrentCreator::creationFailure, this, onFailure);
     connect(torrentCreator, &BitTorrent::TorrentCreator::updateProgress, creationTask, &TorrentCreationTask::handleProgress);
 
-    m_tasks[taskId] = creationTask;
+    //connect(torrentCreator, &BitTorrent::TorrentCreator::creationSuccess, this, TorrentCreationManager::taskDone);
+    //connect(torrentCreator, &BitTorrent::TorrentCreator::creationFailure, this, onFailure);
+
+    tasksById().insert(creationTask);
     m_threadPool.start(torrentCreator);
     return taskId;
 }
 
 QStringList TorrentCreationManager::taskIds() const
 {
-    return m_tasks.keys();
+    QStringList ids;
+    ids.reserve(tasksById().size());
+    for (TorrentCreationTask * task: tasksById())
+        ids << task->id();
+    return ids;
 }
 
 TorrentCreationTask *TorrentCreationManager::getTask(const QString &id) const
 {
-    const auto iter = m_tasks.find(id);
-    if (iter == m_tasks.end())
+    const auto iter = tasksById().find(id);
+    if (iter == tasksById().end())
         return nullptr;
 
-    return iter.value();
+    return *iter;
 }
 
 bool TorrentCreationManager::deleteTask(const QString &id)
 {
-    const auto iter = m_tasks.find(id);
-    if (iter == m_tasks.end())
+    const auto iter = tasksById().find(id);
+    if (iter == tasksById().end())
         return false;
 
-    delete iter.value();
-    m_tasks.erase(iter);
+    delete *iter;
+    tasksById().erase(iter);
     return true;
+}
+
+void TorrentCreationManager::taskDone(const QString &id)
+{
+}
+
+const TorrentCreationTasksSetById &TorrentCreationManager::tasksById() const
+{
+    return m_tasks.get<0>();
+}
+
+TorrentCreationTasksSetById &TorrentCreationManager::tasksById()
+{
+    return m_tasks.get<0>();
+}
+
+const TorrentCreationTasksSetByCompletion &TorrentCreationManager::tasksByCompletion() const
+{
+    return m_tasks.get<1>();
+}
+
+TorrentCreationTasksSetByCompletion &TorrentCreationManager::tasksByCompletion()
+{
+    return m_tasks.get<1>();
 }

@@ -29,7 +29,13 @@
 
 #pragma once
 
-#include <QHash>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/indexed_by.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/ordered_index.hpp>
 #include <QMetaType>
 #include <QObject>
 #include <QThreadPool>
@@ -39,21 +45,22 @@
 
 namespace BitTorrent
 {
+
     class TorrentCreationTask : public QObject
     {
         Q_OBJECT
         Q_DISABLE_COPY_MOVE(TorrentCreationTask)
 
     public:
-        explicit TorrentCreationTask(const TorrentCreatorParams &params, QObject *parent = nullptr);
+        TorrentCreationTask(const QString &id, const TorrentCreatorParams &params, QObject *parent = nullptr);
         bool isDoneWithSuccess() const;
         bool isDoneWithError() const;
         bool isRunning() const;
+        QString id() const;
         QByteArray content() const;
         QString errorMsg() const;
         const TorrentCreatorParams &params() const;
         int progress() const;
-        void startSeeding() const;
 
     public slots:
         void handleProgress(int progress);
@@ -61,6 +68,7 @@ namespace BitTorrent
         void handleSuccess(const TorrentCreatorResult &result);
 
     private:
+        QString m_id;
         TorrentCreatorParams m_params;
         int m_progress = 0;
         bool m_started = false;
@@ -68,6 +76,22 @@ namespace BitTorrent
         TorrentCreatorResult m_result;
         QString m_errorMsg;
     };
+
+    typedef boost::multi_index_container<
+        TorrentCreationTask *,
+        boost::multi_index::indexed_by<
+            boost::multi_index::ordered_unique<boost::multi_index::const_mem_fun<TorrentCreationTask, QString, &TorrentCreationTask::id>>,
+            boost::multi_index::ordered_non_unique<
+                boost::multi_index::composite_key<
+                    TorrentCreationTask *,
+                    boost::multi_index::const_mem_fun<TorrentCreationTask, bool, &TorrentCreationTask::isDoneWithSuccess>,
+                    boost::multi_index::const_mem_fun<TorrentCreationTask, QString, &TorrentCreationTask::id>
+                >
+            >
+        >
+    > TorrentCreationTasksSet;
+    typedef TorrentCreationTasksSet::nth_index<0>::type TorrentCreationTasksSetById;
+    typedef TorrentCreationTasksSet::nth_index<1>::type TorrentCreationTasksSetByCompletion;
 
     class TorrentCreationManager final : public QObject
     {
@@ -79,14 +103,22 @@ namespace BitTorrent
         ~TorrentCreationManager() override;
         static TorrentCreationManager *instance();
         static void freeInstance();
-        QString createTask(const TorrentCreatorParams &params, bool startSeeding = true, bool autoDelete = true);
+        QString createTask(const TorrentCreatorParams &params, bool startSeeding = true);
         TorrentCreationTask* getTask(const QString &id) const;
         bool deleteTask(const QString &id);
         QStringList taskIds() const;
 
+    public slots:
+        void taskDone(const QString &id);
+
     private:
         static QPointer<TorrentCreationManager> m_instance;
-        QHash<QString, TorrentCreationTask *> m_tasks;
+        TorrentCreationTasksSet m_tasks;
         QThreadPool m_threadPool;
+
+        TorrentCreationTasksSetById &tasksById();
+        const TorrentCreationTasksSetById &tasksById() const;
+        TorrentCreationTasksSetByCompletion &tasksByCompletion();
+        const TorrentCreationTasksSetByCompletion &tasksByCompletion() const;
     };
 }
