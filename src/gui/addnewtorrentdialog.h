@@ -116,7 +116,7 @@ private:
     void showEvent(QShowEvent *event) override;
 
     Ui::AddNewTorrentDialog *m_ui = nullptr;
-    std::unique_ptr<TorrentContentAdaptor> m_contentAdaptor;
+    TorrentContentAdaptor *m_contentAdaptor = nullptr;
     BitTorrent::MagnetUri m_magnetURI;
     BitTorrent::TorrentInfo m_torrentInfo;
     int m_savePathIndex = -1;
